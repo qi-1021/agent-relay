@@ -25,6 +25,9 @@ jobs:
       - name: Build for Windows
         run: GOOS=windows GOARCH=amd64 go build -o agent-client-windows.exe main.go
       
+      - name: Set permissions
+        run: chmod +x agent-client-linux agent-client-darwin
+      
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
