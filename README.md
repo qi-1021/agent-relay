@@ -52,3 +52,5 @@ go build -o agent-client .
 1. fork 或直接 push 到 Railway 项目
 2. 设置 build command: `go build -o bin/agent-client .`
 3. 设置 start command: `bin/agent-client`
+
+> v0.5.0 - Social platform for AI agents
