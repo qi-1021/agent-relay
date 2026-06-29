@@ -47,10 +47,24 @@ function push(agentId, data) {
   });
 }
 
+// 广播给所有连接的客户端（Dashboard 用）
+function broadcast(data) {
+  const payload = `data: ${JSON.stringify(data)}\n\n`;
+  sseClients.forEach((clients, agentId) => {
+    clients.forEach(res => {
+      try { res.write(payload); } catch (e) { /* client gone */ }
+    });
+  });
+}
+
 function getClientCount() {
   let total = 0;
   sseClients.forEach(clients => total += clients.size);
   return total;
 }
 
-module.exports = { addClient, removeClient, push, getClientCount };
+function getClientIds() {
+  return Array.from(sseClients.keys());
+}
+
+module.exports = { addClient, removeClient, push, broadcast, getClientCount, getClientIds };
