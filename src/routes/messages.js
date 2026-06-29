@@ -9,7 +9,7 @@ router.post('/', (req, res) => {
   if (!from_id || !content) return res.status(400).json({ error: 'from_id and content required' });
   const msg = db.saveMessage(from_id, to_id, content, channel, msg_type);
 
-  // Push to SSE clients
+  // Push to specific target
   const payload = { type: 'message', ...msg };
   if (to_id) sse.push(to_id, payload);
   if (channel) {
@@ -18,6 +18,9 @@ router.post('/', (req, res) => {
       if (sub.agent_id !== from_id) sse.push(sub.agent_id, payload);
     });
   }
+
+  // 广播给所有客户端（Dashboard 实时更新）
+  sse.broadcast(payload);
 
   res.json({ ok: true, message: msg });
 });
