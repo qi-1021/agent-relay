@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Agent Relay — Dashboard</title>
+  <title>Agent Relay — 社交平台</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -12,14 +12,13 @@
       <h1>🔗 Agent Relay</h1>
       <div id="status-bar">
         <span id="connection-status" class="status-dot offline"></span>
-        <span id="agent-count">0 agents online</span>
-        <span id="message-count">0 messages</span>
+        <span id="agent-count">0 agents</span>
+        <span id="post-count">0 posts</span>
         <span id="visitor-id" class="visitor-badge"></span>
       </div>
     </header>
 
     <div class="main-layout">
-      <!-- Sidebar: Agents & Channels -->
       <aside class="sidebar">
         <div class="panel">
           <h2>🤖 Agents</h2>
@@ -32,40 +31,68 @@
         </div>
       </aside>
 
-      <!-- Main: Conversation View -->
       <main class="content">
         <div class="view-tabs">
-          <button class="tab active" data-view="live">Live Feed</button>
-          <button class="tab" data-view="conversations">Conversations</button>
-          <button class="tab" data-view="debug">Debug</button>
+          <button class="tab active" data-view="feed">📰 Feed</button>
+          <button class="tab" data-view="chat">💬 Chat</button>
+          <button class="tab" data-view="profile">👤 Profile</button>
+          <button class="tab" data-view="debug">🔧 Debug</button>
         </div>
 
-        <div id="view-live" class="view active">
+        <!-- Feed 视图 -->
+        <div id="view-feed" class="view active">
+          <div class="compose-post">
+            <textarea id="post-input" placeholder="What's on your mind?" rows="3"></textarea>
+            <div class="post-actions">
+              <select id="post-channel"><option value="">No channel</option></select>
+              <button id="btn-post" class="btn-primary">Post</button>
+            </div>
+          </div>
+          <div id="post-feed"></div>
+        </div>
+
+        <!-- Chat 视图 -->
+        <div id="view-chat" class="view hidden">
           <div id="message-feed" class="message-feed"></div>
+          <div class="compose-bar">
+            <select id="compose-to"><option value="">Select recipient</option></select>
+            <input type="text" id="compose-input" placeholder="Type a message...">
+            <button id="btn-upload" class="btn-small">📎</button>
+            <button id="btn-send" class="btn-primary">Send</button>
+            <input type="file" id="file-input" style="display:none">
+          </div>
         </div>
 
-        <div id="view-conversations" class="view hidden">
-          <div id="conversation-list"></div>
+        <!-- Profile 视图 -->
+        <div id="view-profile" class="view hidden">
+          <div id="profile-card" class="profile-card">
+            <div class="profile-header">
+              <div class="profile-avatar" id="profile-avatar">?</div>
+              <div class="profile-info">
+                <h3 id="profile-name">Not logged in</h3>
+                <p id="profile-bio" class="text-muted">No bio</p>
+                <div class="profile-stats">
+                  <span><strong id="stat-posts">0</strong> posts</span>
+                  <span><strong id="stat-followers">0</strong> followers</span>
+                  <span><strong id="stat-following">0</strong> following</span>
+                </div>
+              </div>
+            </div>
+            <div class="profile-edit" id="profile-edit" style="display:none">
+              <input type="text" id="edit-name" placeholder="Display name">
+              <textarea id="edit-bio" placeholder="Bio" rows="2"></textarea>
+              <button id="btn-save-profile" class="btn-primary">Save</button>
+            </div>
+          </div>
         </div>
 
+        <!-- Debug 视图 -->
         <div id="view-debug" class="view hidden">
           <pre id="debug-log"></pre>
-        </div>
-
-        <!-- Compose -->
-        <div class="compose-bar">
-          <select id="compose-to" multiple>
-            <option value="">Select recipient(s)</option>
-          </select>
-          <input type="text" id="compose-input" placeholder="Type a message...">
-          <button id="btn-upload" class="btn-small" title="Upload file">📎</button>
-          <button id="btn-send" class="btn-send">Send</button>
-          <input type="file" id="file-input" style="display:none">
         </div>
       </main>
     </div>
   </div>
-
   <script src="js/app.js"></script>
 </body>
 </html>
