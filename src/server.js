@@ -4,6 +4,7 @@ const { WebSocketServer } = require('ws');
 const cors = require('cors');
 const path = require('path');
 const db = require('./models/database');
+const sse = require('./sse');
 const agentRoutes = require('./routes/agents');
 const messageRoutes = require('./routes/messages');
 const channelRoutes = require('./routes/channels');
@@ -24,7 +25,27 @@ app.use('/api/channels', channelRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', agents: db.getAgentCount(), messages: db.getMessageCount() });
+  res.json({ status: 'ok', agents: db.getAgentCount(), messages: db.getMessageCount(), sse_clients: sse.getClientCount() });
+});
+
+// SSE (Server-Sent Events) - 实时推送
+app.get('/api/stream', (req, res) => {
+  const agentId = req.query.agent_id;
+  if (!agentId) return res.status(400).json({ error: 'agent_id required' });
+
+  // SSE headers
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+    'Access-Control-Allow-Origin': '*'
+  });
+  res.write('data: {"type":"connected"}\n\n');
+
+  sse.addClient(agentId, res);
+
+  // Cleanup on disconnect
+  req.on('close', () => sse.removeClient(agentId, res));
 });
 
 // WebSocket connections
@@ -50,18 +71,27 @@ wss.on('connection', (ws, req) => {
         const saved = db.saveMessage(agentId, msg.to, msg.content, msg.channel, msg.msg_type);
         const payload = { type: 'message', ...saved };
         
-        // Send to target agent
+        // Send to target agent via WebSocket
         if (msg.to && wsClients.has(msg.to)) {
           wsClients.get(msg.to).send(JSON.stringify(payload));
         }
         
-        // Send to channel subscribers
+        // Send to channel subscribers via WebSocket
         if (msg.channel) {
           const subscribers = db.getChannelSubscribers(msg.channel);
           subscribers.forEach(sub => {
             if (sub.agent_id !== agentId && wsClients.has(sub.agent_id)) {
               wsClients.get(sub.agent_id).send(JSON.stringify(payload));
             }
+          });
+        }
+
+        // Push to SSE clients
+        if (msg.to) sse.push(msg.to, payload);
+        if (msg.channel) {
+          const subscribers = db.getChannelSubscribers(msg.channel);
+          subscribers.forEach(sub => {
+            if (sub.agent_id !== agentId) sse.push(sub.agent_id, payload);
           });
         }
 
