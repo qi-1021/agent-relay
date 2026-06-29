@@ -283,3 +283,27 @@ header h1 { font-size: 18px; font-weight: 600; }
   color: var(--text-muted);
   white-space: pre-wrap;
 }
+
+/* Visitor badge */
+.visitor-badge {
+  font-size: 12px;
+  background: var(--bg-tertiary);
+  color: var(--accent);
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+/* File link */
+.file-link {
+  color: var(--accent);
+  text-decoration: none;
+}
+.file-link:hover {
+  text-decoration: underline;
+}
+
+/* Multi-select */
+.compose-bar select[multiple] {
+  min-height: 36px;
+  min-width: 180px;
+}
