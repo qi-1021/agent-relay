@@ -3,6 +3,7 @@
   let sse = null;
   let agents = [];
   let messages = [];
+  let visitorId = null;
 
   // DOM
   const $ = s => document.querySelector(s);
@@ -13,15 +14,30 @@
   const messageCount = $('#message-count');
   const connectionStatus = $('#connection-status');
   const debugLog = $('#debug-log');
-  const composeFrom = $('#compose-from');
   const composeTo = $('#compose-to');
   const composeInput = $('#compose-input');
   const btnSend = $('#btn-send');
+  const btnUpload = $('#btn-upload');
+  const fileInput = $('#file-input');
+  const visitorIdEl = $('#visitor-id');
+
+  // 获取访客身份
+  async function initVisitor() {
+    try {
+      const res = await fetch(`${API}/api/visitor`);
+      const data = await res.json();
+      visitorId = data.id;
+      visitorIdEl.textContent = `👤 ${visitorId}`;
+      log(`Visitor identity: ${visitorId}`);
+    } catch (e) {
+      visitorId = 'visitor-' + Math.random().toString(36).slice(2, 8);
+      visitorIdEl.textContent = `👤 ${visitorId}`;
+    }
+  }
 
   // SSE 连接
   function connectSSE() {
-    const agentId = 'dashboard-' + Math.random().toString(36).slice(2, 8);
-    sse = new EventSource(`${API}/api/stream?agent_id=${agentId}`);
+    sse = new EventSource(`${API}/api/stream?agent_id=${visitorId}`);
 
     sse.onopen = () => {
       connectionStatus.className = 'status-dot online';
@@ -54,6 +70,10 @@
 
     if (msg.type === 'message') {
       appendMessage(msg);
+    }
+
+    if (msg.type === 'broadcast') {
+      log(`📢 Broadcast from ${msg.from_id}: ${msg.content}`);
     }
   }
 
@@ -104,6 +124,10 @@
       const initial = (fromAgent?.name || m.from_id || '?')[0].toUpperCase();
       const time = new Date(m.timestamp).toLocaleTimeString();
       const target = m.to_id ? `→ ${m.to_id}` : m.channel ? `📢 ${m.channel}` : '';
+      const isFile = m.msg_type === 'file';
+      const content = isFile
+        ? `<a href="${m.content}" target="_blank" class="file-link">📎 ${m.content.split('/').pop()}</a>`
+        : escapeHtml(m.content);
 
       return `
         <div class="msg">
@@ -115,7 +139,7 @@
               ${m.channel ? `<span class="channel-tag">${m.channel}</span>` : ''}
               <span class="time">${time}</span>
             </div>
-            <div class="content">${escapeHtml(m.content)}</div>
+            <div class="content">${content}</div>
           </div>
         </div>
       `;
@@ -125,8 +149,7 @@
 
   function renderAgentSelects() {
     const opts = agents.map(a => `<option value="${a.id}">${a.name || a.id}</option>`).join('');
-    composeFrom.innerHTML = '<option value="">From (agent_id)</option>' + opts;
-    composeTo.innerHTML = '<option value="">To (agent_id or channel)</option>' + opts;
+    composeTo.innerHTML = '<option value="">Select recipient(s)</option>' + opts;
   }
 
   function appendMessage(msg) {
@@ -134,19 +157,51 @@
     renderMessages();
   }
 
-  // Send manual message
+  // 发送消息（支持群发）
   async function sendMessage() {
-    const from = composeFrom.value;
-    const to = composeTo.value;
+    const selected = Array.from(composeTo.selectedOptions).map(o => o.value).filter(Boolean);
     const content = composeInput.value.trim();
-    if (!from || !content) return;
+    if (!content || selected.length === 0) return;
 
-    await fetch(`${API}/api/messages`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from_id: from, to_id: to || null, content })
-    });
+    if (selected.length === 1) {
+      // 单发
+      await fetch(`${API}/api/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from_id: visitorId, to_id: selected[0], content })
+      });
+    } else {
+      // 群发
+      await fetch(`${API}/api/messages/broadcast`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from_id: visitorId, to_ids: selected, content })
+      });
+    }
     composeInput.value = '';
+  }
+
+  // 文件上传
+  async function uploadFile(file) {
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+      const res = await fetch(`${API}/api/upload`, { method: 'POST', body: formData });
+      const data = await res.json();
+      if (data.ok) {
+        // 发送文件消息
+        const selected = Array.from(composeTo.selectedOptions).map(o => o.value).filter(Boolean);
+        if (selected.length > 0) {
+          await fetch(`${API}/api/messages`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ from_id: visitorId, to_id: selected[0], content: data.url, msg_type: 'file' })
+          });
+        }
+      }
+    } catch (e) {
+      log('Upload error: ' + e.message);
+    }
   }
 
   // Tabs
@@ -161,6 +216,10 @@
 
   btnSend.addEventListener('click', sendMessage);
   composeInput.addEventListener('keydown', e => { if (e.key === 'Enter') sendMessage(); });
+  btnUpload.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files[0]) uploadFile(fileInput.files[0]);
+  });
 
   // Helpers
   function escapeHtml(s) {
@@ -174,9 +233,11 @@
   }
 
   // Init
-  connectSSE();
-  refreshAgents();
-  refreshMessages();
-  refreshChannels();
-  setInterval(refreshAgents, 10000);
+  initVisitor().then(() => {
+    connectSSE();
+    refreshAgents();
+    refreshMessages();
+    refreshChannels();
+    setInterval(refreshAgents, 10000);
+  });
 })();
