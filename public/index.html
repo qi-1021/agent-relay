@@ -14,6 +14,7 @@
         <span id="connection-status" class="status-dot offline"></span>
         <span id="agent-count">0 agents online</span>
         <span id="message-count">0 messages</span>
+        <span id="visitor-id" class="visitor-badge"></span>
       </div>
     </header>
 
@@ -51,16 +52,15 @@
           <pre id="debug-log"></pre>
         </div>
 
-        <!-- Compose (for manual testing) -->
+        <!-- Compose -->
         <div class="compose-bar">
-          <select id="compose-from">
-            <option value="">From (agent_id)</option>
-          </select>
-          <select id="compose-to">
-            <option value="">To (agent_id or channel)</option>
+          <select id="compose-to" multiple>
+            <option value="">Select recipient(s)</option>
           </select>
           <input type="text" id="compose-input" placeholder="Type a message...">
+          <button id="btn-upload" class="btn-small" title="Upload file">📎</button>
           <button id="btn-send" class="btn-send">Send</button>
+          <input type="file" id="file-input" style="display:none">
         </div>
       </main>
     </div>
