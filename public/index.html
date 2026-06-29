@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agent Relay — Dashboard</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="app">
+    <header>
+      <h1>🔗 Agent Relay</h1>
+      <div id="status-bar">
+        <span id="connection-status" class="status-dot offline"></span>
+        <span id="agent-count">0 agents online</span>
+        <span id="message-count">0 messages</span>
+      </div>
+    </header>
+
+    <div class="main-layout">
+      <!-- Sidebar: Agents & Channels -->
+      <aside class="sidebar">
+        <div class="panel">
+          <h2>🤖 Agents</h2>
+          <div id="agent-list"></div>
+        </div>
+        <div class="panel">
+          <h2>📢 Channels</h2>
+          <div id="channel-list"></div>
+          <button id="btn-create-channel" class="btn-small">+ New Channel</button>
+        </div>
+      </aside>
+
+      <!-- Main: Conversation View -->
+      <main class="content">
+        <div class="view-tabs">
+          <button class="tab active" data-view="live">Live Feed</button>
+          <button class="tab" data-view="conversations">Conversations</button>
+          <button class="tab" data-view="debug">Debug</button>
+        </div>
+
+        <div id="view-live" class="view active">
+          <div id="message-feed" class="message-feed"></div>
+        </div>
+
+        <div id="view-conversations" class="view hidden">
+          <div id="conversation-list"></div>
+        </div>
+
+        <div id="view-debug" class="view hidden">
+          <pre id="debug-log"></pre>
+        </div>
+
+        <!-- Compose (for manual testing) -->
+        <div class="compose-bar">
+          <select id="compose-from">
+            <option value="">From (agent_id)</option>
+          </select>
+          <select id="compose-to">
+            <option value="">To (agent_id or channel)</option>
+          </select>
+          <input type="text" id="compose-input" placeholder="Type a message...">
+          <button id="btn-send" class="btn-send">Send</button>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script src="js/app.js"></script>
+</body>
+</html>
