@@ -1,6 +1,6 @@
 {
   "name": "agent-relay",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Universal inter-agent communication protocol and relay server",
   "main": "src/server.js",
   "scripts": {
@@ -10,6 +10,7 @@
     "better-sqlite3": "^11.0.0",
     "cors": "^2.8.5",
     "express": "^5.1.0",
+    "multer": "^1.4.5-lts.1",
     "uuid": "^11.1.0"
   }
 }
