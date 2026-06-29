@@ -15,12 +15,10 @@ import (
 )
 
 type Config struct {
-	RelayURL  string
-	AgentID   string
-	APIKey    string
-	BaseURL   string
-	Model     string
-	MaxTokens int
+	RelayURL     string
+	AgentID      string
+	ForwardURL   string // 转发到本地框架的地址
+	ForwardPath  string // 转发路径
 }
 
 type RelayMessage struct {
@@ -39,27 +37,14 @@ type SSEEvent struct {
 	Timestamp int64  `json:"timestamp,omitempty"`
 }
 
-type ChatRequest struct {
-	Model    string        `json:"model"`
-	Messages []ChatMessage `json:"messages"`
-	MaxTokens int          `json:"max_tokens,omitempty"`
-}
-
-type ChatMessage struct {
-	Role    string `json:"role"`
+type ForwardRequest struct {
+	From    string `json:"from"`
 	Content string `json:"content"`
 }
 
-type ChatResponse struct {
-	Choices []struct {
-		Message struct {
-			Content string `json:"content"`
-		} `json:"message"`
-	} `json:"choices"`
+type ForwardResponse struct {
+	Reply string `json:"reply"`
 }
-
-var conversationHistory = make(map[string][]ChatMessage)
-const maxHistory = 20
 
 func main() {
 	log.SetFlags(log.LstdFlags | log.Lmicroseconds)
@@ -67,7 +52,7 @@ func main() {
 
 	log.Printf("[启动] Agent: %s", config.AgentID)
 	log.Printf("[Relay] %s", config.RelayURL)
-	log.Printf("[模型] %s @ %s", config.Model, config.BaseURL)
+	log.Printf("[转发] %s%s", config.ForwardURL, config.ForwardPath)
 
 	register(config)
 
@@ -89,62 +74,45 @@ func main() {
 }
 
 func handleMessage(event *SSEEvent, config *Config) {
-	fromID := event.FromID
-	content := event.Content
-
-	if _, ok := conversationHistory[fromID]; !ok {
-		conversationHistory[fromID] = []ChatMessage{
-			{Role: "system", Content: fmt.Sprintf("你是 %s，一个 AI 智能体。你正在通过 Agent Relay 与其他智能体对话。回复要简洁、有帮助。", config.AgentID)},
-		}
-	}
-	conversationHistory[fromID] = append(conversationHistory[fromID], ChatMessage{Role: "user", Content: content})
-
-	if len(conversationHistory[fromID]) > maxHistory {
-		conversationHistory[fromID] = append(
-			conversationHistory[fromID][:1],
-			conversationHistory[fromID][len(conversationHistory[fromID])-maxHistory+1:]...,
-		)
-	}
-
-	reply := callLLM(config, conversationHistory[fromID])
+	// 转发到本地框架
+	reply := forwardToFramework(config, event.FromID, event.Content)
 	if reply == "" {
-		reply = "[无响应]"
+		reply = "[框架无响应]"
 	}
 
-	conversationHistory[fromID] = append(conversationHistory[fromID], ChatMessage{Role: "assistant", Content: reply})
-	sendReply(config, fromID, reply)
-	log.Printf("[回复] → %s: %s", fromID, truncate(reply, 80))
+	// 通过 Relay 回复
+	sendReply(config, event.FromID, reply)
+	log.Printf("[回复] → %s: %s", event.FromID, truncate(reply, 80))
 }
 
-func callLLM(config *Config, messages []ChatMessage) string {
-	reqBody := ChatRequest{Model: config.Model, Messages: messages, MaxTokens: config.MaxTokens}
+func forwardToFramework(config *Config, fromID, content string) string {
+	reqBody := ForwardRequest{From: fromID, Content: content}
 	data, _ := json.Marshal(reqBody)
 
-	url := strings.TrimRight(config.BaseURL, "/") + "/chat/completions"
+	url := config.ForwardURL + config.ForwardPath
 	req, _ := http.NewRequest("POST", url, bytes.NewBuffer(data))
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+config.APIKey)
 
-	client := &http.Client{Timeout: 60 * time.Second}
+	client := &http.Client{Timeout: 120 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Printf("[LLM 错误] %v", err)
+		log.Printf("[转发错误] %v", err)
 		return ""
 	}
 	defer resp.Body.Close()
 
 	body, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != 200 {
-		log.Printf("[LLM 错误] %d: %s", resp.StatusCode, truncate(string(body), 200))
+		log.Printf("[转发错误] %d: %s", resp.StatusCode, truncate(string(body), 200))
 		return ""
 	}
 
-	var chatResp ChatResponse
-	json.Unmarshal(body, &chatResp)
-	if len(chatResp.Choices) > 0 {
-		return chatResp.Choices[0].Message.Content
+	var fwdResp ForwardResponse
+	if err := json.Unmarshal(body, &fwdResp); err != nil {
+		// 如果不是 JSON，直接返回原始响应
+		return string(body)
 	}
-	return ""
+	return fwdResp.Reply
 }
 
 func sendReply(config *Config, toID, content string) {
@@ -154,24 +122,26 @@ func sendReply(config *Config, toID, content string) {
 }
 
 func register(config *Config) {
-	data, _ := json.Marshal(map[string]string{"agent_id": config.AgentID, "name": config.AgentID, "framework": "go-sse-client"})
+	data, _ := json.Marshal(map[string]string{
+		"agent_id":  config.AgentID,
+		"name":      config.AgentID,
+		"framework": "relay-bridge",
+	})
 	http.Post(config.RelayURL+"/api/agents/register", "application/json", bytes.NewBuffer(data))
 	log.Println("[注册] 成功")
 }
 
 func loadConfig() *Config {
 	cfg := &Config{
-		RelayURL:  "https://agent-relay-production-560a.up.railway.app",
-		AgentID:   "hermes",
-		BaseURL:   "https://apihub.agnes-ai.com/v1",
-		Model:     "agnes-2.0-flash",
-		MaxTokens: 500,
+		RelayURL:    "https://agent-relay-production-560a.up.railway.app",
+		AgentID:     "hermes",
+		ForwardURL:  "http://localhost:3000",
+		ForwardPath: "/chat",
 	}
 	if v := os.Getenv("RELAY_URL"); v != "" { cfg.RelayURL = v }
 	if v := os.Getenv("AGENT_ID"); v != "" { cfg.AgentID = v }
-	if v := os.Getenv("API_KEY"); v != "" { cfg.APIKey = v }
-	if v := os.Getenv("BASE_URL"); v != "" { cfg.BaseURL = v }
-	if v := os.Getenv("MODEL"); v != "" { cfg.Model = v }
+	if v := os.Getenv("FORWARD_URL"); v != "" { cfg.ForwardURL = v }
+	if v := os.Getenv("FORWARD_PATH"); v != "" { cfg.ForwardPath = v }
 	return cfg
 }
 
