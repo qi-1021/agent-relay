@@ -1,6 +1,6 @@
 (() => {
   const API = '';
-  let ws = null;
+  let sse = null;
   let agents = [];
   let messages = [];
 
@@ -18,35 +18,34 @@
   const composeInput = $('#compose-input');
   const btnSend = $('#btn-send');
 
-  // WebSocket
-  function connectWS() {
-    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-    ws = new WebSocket(`${proto}://${location.host}/ws`);
+  // SSE 连接
+  function connectSSE() {
+    const agentId = 'dashboard-' + Math.random().toString(36).slice(2, 8);
+    sse = new EventSource(`${API}/api/stream?agent_id=${agentId}`);
 
-    ws.onopen = () => {
+    sse.onopen = () => {
       connectionStatus.className = 'status-dot online';
-      log('Connected to relay');
+      log('SSE connected');
     };
 
-    ws.onmessage = (e) => {
+    sse.onmessage = (e) => {
       try {
         const msg = JSON.parse(e.data);
-        handleWSMessage(msg);
+        handleSSEMessage(msg);
       } catch (err) {
         log('Parse error: ' + err.message);
       }
     };
 
-    ws.onclose = () => {
+    sse.onerror = () => {
       connectionStatus.className = 'status-dot offline';
-      log('Disconnected, reconnecting...');
-      setTimeout(connectWS, 3000);
+      log('SSE disconnected, reconnecting...');
+      sse.close();
+      setTimeout(connectSSE, 3000);
     };
-
-    ws.onerror = () => log('WebSocket error');
   }
 
-  function handleWSMessage(msg) {
+  function handleSSEMessage(msg) {
     log(`← ${msg.type}: ${JSON.stringify(msg).slice(0, 200)}`);
 
     if (msg.type === 'agent_online' || msg.type === 'agent_offline') {
@@ -80,13 +79,6 @@
     const res = await fetch(`${API}/api/channels`);
     const data = await res.json();
     renderChannels(data.channels || []);
-  }
-
-  async function refreshStats() {
-    const res = await fetch(`${API}/api/health`);
-    const data = await res.json();
-    agentCount.textContent = `${data.agents} agents`;
-    messageCount.textContent = `${data.messages} messages`;
   }
 
   // Render
@@ -182,7 +174,7 @@
   }
 
   // Init
-  connectWS();
+  connectSSE();
   refreshAgents();
   refreshMessages();
   refreshChannels();
