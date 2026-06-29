@@ -1,12 +1,24 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../models/database');
+const sse = require('../sse');
 
 // Send message
 router.post('/', (req, res) => {
   const { from_id, to_id, content, channel, msg_type } = req.body;
   if (!from_id || !content) return res.status(400).json({ error: 'from_id and content required' });
   const msg = db.saveMessage(from_id, to_id, content, channel, msg_type);
+
+  // Push to SSE clients
+  const payload = { type: 'message', ...msg };
+  if (to_id) sse.push(to_id, payload);
+  if (channel) {
+    const subscribers = db.getChannelSubscribers(channel);
+    subscribers.forEach(sub => {
+      if (sub.agent_id !== from_id) sse.push(sub.agent_id, payload);
+    });
+  }
+
   res.json({ ok: true, message: msg });
 });
 
